@@ -9,7 +9,7 @@ from agent.dqn_agent import DQNAgent
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    env = ALESpaceInvaders()
+    env = ALESpaceInvadersEnv()
     preprocessor = FramePreprocessor()
     frame_stack = FrameStack()
     replay_buffer = ReplayBuffer(capacity = 100000)
@@ -25,7 +25,7 @@ def main():
     for episode in range(num_episodes):
         frame, info = env.reset()
         processed_frame = preprocessor.preprocess(frame)
-        frame_stack.reset(preprocessed_frame)
+        frame_stack.reset(processed_frame)
         state = frame_stack.get_state()
 
         done = False
@@ -35,7 +35,7 @@ def main():
         while not done:
             action = agent.select_action(state)
             next_frame, reward, done, info = env.step(action)
-            processed_next_frame = preprocesser.preprocess(next_frame)
+            processed_next_frame = preprocessor.preprocess(next_frame)
             frame_stack.append(processed_next_frame)
             next_state = frame_stack.get_state()
             replay_buffer.append(state, action, reward, next_state, done)
@@ -50,7 +50,7 @@ def main():
 
             state = next_state
             episode_reward += reward
-            epsiode_steps += 1
+            episode_steps += 1
             total_steps += 1
 
         print(f"Episode {episode} | " f"Reward: {episode_reward:.2f} | " f"Steps: {episode_steps} | "
