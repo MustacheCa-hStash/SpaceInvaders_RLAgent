@@ -3,7 +3,7 @@ class SpaceInvadersRewardFunction:
         reward = 0.0
 
         if previous_lives > current_lives:
-            reward -= 15.0
+            reward -= 50.0
 
         reward += env_reward
 

@@ -1,4 +1,4 @@
-from dqn_network import DQNNetwork
+from agent.dqn_network import DQNNetwork
 import random
 import torch
 import torch.nn.functional as F
@@ -38,6 +38,30 @@ class DQNAgent:
                            self.epsilon_end)
         self.steps_done += 1
         return action_idx
+
+    def select_greedy_action(self, state):
+        with torch.no_grad():
+            state = torch.as_tensor(state, dtype = torch.float32, device = self.device) / 255.0
+            state = state.unsqueeze(0)
+
+            q_values = self.online_net(state)
+            action_idx = torch.argmax(q_values, dim = 1).item()
+
+        return action_idx
+
+    def get_q_stats(self, state):
+        with torch.no_grad():
+            state = torch.as_tensor(state, dtype=torch.float32, device=self.device) / 255.0
+            state = state.unsqueeze(0)
+
+            q_values = self.online_net(state).squeeze(0)
+            max_q = q_values.max().item()
+            mean_q = q_values.mean().item()
+
+            top2 = torch.topk(q_values, k = 2).values
+            q_gap = (top2[0] - top2[1]).item()
+
+            return max_q, mean_q, q_gap
 
     def train_step(self, replay_buffer, batch_size):
         if len(replay_buffer) < batch_size:
