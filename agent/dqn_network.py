@@ -27,3 +27,12 @@ class DQNNetwork(nn.Module):
         x = torch.flatten(x, start_dim = 1)
         latent = F.relu(self.fc1(x))
         return latent
+
+    def extract_conv_activations(self, x):
+        x1 = F.relu(self.conv1(x))
+        x2 = F.relu(self.conv2(x1))
+        x3 = F.relu(self.conv3(x2))
+        flat = torch.flatten(x3, start_dim = 1)
+        latent = F.relu(self.fc1(flat))
+
+        return {"conv1": x1, "conv2": x2, "conv3": x3, "latent": latent}

@@ -31,6 +31,8 @@ def main():
     while not done:
         action = agent.select_greedy_action(state)
 
+        print("Action Selected:", env.actions[action])
+
         next_frame, reward, done, info = env.step(action)
 
         env.render()
