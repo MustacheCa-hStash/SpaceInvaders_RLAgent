@@ -26,9 +26,17 @@ def main():
     train_start_size = 10000
     save_freq = 50
     total_steps = 0
+    STEP_DOWNTIME = 130
 
     for episode in range(num_episodes):
+
         frame, info = env.reset()
+
+        for _ in range(STEP_DOWNTIME):
+            #NOOP: 0 first 130 actions
+            next_frame, reward, done, info = env.step(0)
+
+        frame = next_frame
         processed_frame = preprocessor.preprocess(frame)
         frame_stack.reset(processed_frame)
         state = frame_stack.get_state()

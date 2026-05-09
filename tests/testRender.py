@@ -11,6 +11,7 @@ rom_path = get_rom_path("space_invaders")
 ale.loadROM(rom_path)
 
 actions = ale.getMinimalActionSet()
+print(actions)
 
 while True:
 

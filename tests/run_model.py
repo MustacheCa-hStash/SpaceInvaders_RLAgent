@@ -10,7 +10,7 @@ MODEL_PATH = "checkpoints/dqn_space_invaders_final.pt"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def main():
-    env = ALESpaceInvadersEnv(render_delay=10)
+    env = ALESpaceInvadersEnv(render_delay=500)
     preprocessor = FramePreprocessor()
     frame_stack = FrameStack(stack_size=4)
 
@@ -19,6 +19,13 @@ def main():
     agent.online_net.eval()
 
     frame, info = env.reset()
+
+    STEP_DOWNTIME = 130
+    for _ in range(STEP_DOWNTIME):
+        # NOOP: 0 first 130 actions
+        next_frame, reward, done, info = env.step(0)
+
+    frame = next_frame
     processed_frame = preprocessor.preprocess(frame)
 
     frame_stack.reset(processed_frame)
