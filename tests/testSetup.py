@@ -1,122 +1,137 @@
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+
 from env.ale_space_invaders import ALESpaceInvadersEnv
+from preprocessing.frame_preprocessor import FramePreprocessor
+from preprocessing.frame_stack import FrameStack
+from preprocessing.frame_preprocessor import FrameMaxer
+from agent.dqn_agent import DQNAgent
 
 
+MODEL_PATH = "checkpoints/dqn_space_invaders_final.pt"
+
+OUTPUT_DIR = "debug_frame_max_policy"
 STEP_DOWNTIME = 130
-RENDER_DELAY = 200
-LEFT_BOUND = 0
-RIGHT_BOUND = 164
+NUM_STEPS = 300
+SAVE_EVERY = 2
+RENDER_DELAY = 20
 
 
-def find_action_index(env, action_name):
-    for i, action in enumerate(env.actions):
-        if action.name == action_name:
-            return i
+def save_comparison(previous_frame, current_frame, maxed_frame,
+                    stack_state, step, action_name):
 
-    raise ValueError(f"{action_name} not found.")
+    fig, axes = plt.subplots(1, 4, figsize=(12, 3))
 
+    axes[0].imshow(previous_frame, cmap="gray")
+    axes[0].set_title("Previous")
 
-def get_x(info):
-    return info["pre_action_net_x_pos"]
+    axes[1].imshow(current_frame, cmap="gray")
+    axes[1].set_title("Current")
 
+    axes[2].imshow(maxed_frame, cmap="gray")
+    axes[2].set_title("Pixelwise Max")
 
-def check_bounds(info, label, step):
-    x = get_x(info)
+    # Show latest stacked frame channel
+    axes[3].imshow(stack_state[-1], cmap="gray")
+    axes[3].set_title("Stack Latest")
 
-    if x < LEFT_BOUND or x > RIGHT_BOUND:
-        raise AssertionError(
-            f"{label} step {step}: net_x_pos out of bounds: {x}"
-        )
+    for ax in axes:
+        ax.axis("off")
 
+    fig.suptitle(f"Step {step} | Action: {action_name}")
 
-def run_action(env, action_index, steps, label, render=True):
-    last_x = None
-    last_info = None
+    plt.tight_layout()
 
-    for step in range(1, steps + 1):
-        frame, reward, done, info = env.step(action_index)
-        last_info = info
+    save_path = os.path.join(
+        OUTPUT_DIR,
+        f"frame_max_step_{step:04d}.png"
+    )
 
-        check_bounds(info, label, step)
-
-        x = get_x(info)
-
-        print(
-            f"{label} | "
-            f"Step {step}/{steps} | "
-            f"Action: {info['action_name']} | "
-            f"pre_action_net_x_pos: {x} | "
-            f"reward: {reward:.2f}"
-        )
-
-        if last_x is not None:
-            if label.startswith("RIGHT") and last_x == RIGHT_BOUND and x != RIGHT_BOUND:
-                raise AssertionError("Drift detected at right boundary.")
-
-            if label.startswith("LEFT") and last_x == LEFT_BOUND and x != LEFT_BOUND:
-                raise AssertionError("Drift detected at left boundary.")
-
-        last_x = x
-
-        if render:
-            env.render()
-
-        if done:
-            print("Game ended early.")
-            return True, last_info
-
-    return False, last_info
+    plt.savefig(save_path)
+    plt.close(fig)
 
 
 def main():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     env = ALESpaceInvadersEnv(render_delay=RENDER_DELAY)
 
-    print("Action Set:")
-    for i, action in enumerate(env.actions):
-        print(i, action.name)
+    preprocessor = FramePreprocessor()
+    frame_maxer = FrameMaxer()
+    frame_stack = FrameStack()
 
-    noop_idx = find_action_index(env, "NOOP")
-    left_idx = find_action_index(env, "LEFT")
-    right_idx = find_action_index(env, "RIGHT")
+    agent = DQNAgent(env, device)
+    agent.load(MODEL_PATH)
 
     frame, info = env.reset()
 
-    print("\nStartup...")
-    for step in range(1, STEP_DOWNTIME + 1):
-        frame, reward, done, info = env.step(noop_idx)
-        check_bounds(info, "STARTUP", step)
+    # Startup NOOP period
+    for _ in range(STEP_DOWNTIME):
+        frame, reward, done, info = env.step(0)
 
         if done:
             print("Game ended during startup.")
             env.close()
             return
 
-    print("\nStress test beginning...\n")
+    processed_frame = preprocessor.preprocess(frame)
 
-    tests = [
-        ("LEFT slam from start", left_idx, 30),
-        ("RIGHT to wall plus extra", right_idx, 220),
-        ("RIGHT extra at wall", right_idx, 30),
-        ("LEFT to wall plus extra", left_idx, 220),
-        ("LEFT extra at wall", left_idx, 30),
-        ("RIGHT to wall again", right_idx, 220),
-        ("LEFT to wall again", left_idx, 220),
-    ]
+    maxed_frame = frame_maxer.reset(processed_frame)
 
-    for label, action_idx, steps in tests:
-        ended, last_info = run_action(env, action_idx, steps, label, render=True)
+    frame_stack.reset(maxed_frame)
 
-        if ended:
-            env.close()
-            return
+    state = frame_stack.get_state()
 
-        print(f"Finished {label}. Last pre_action_net_x_pos = {get_x(last_info)}\n")
+    previous_processed = processed_frame
 
-    print("Boundary tracking test complete. No out-of-bounds drift detected.")
+    done = False
 
-    for _ in range(30):
+    for step in range(1, NUM_STEPS + 1):
+
+        action = agent.select_greedy_action(state)
+
+        next_frame, reward, done, info = env.step(action)
+
         env.render()
 
+        current_processed = preprocessor.preprocess(next_frame)
+
+        maxed_next_frame = frame_maxer.apply(current_processed)
+
+        frame_stack.append(maxed_next_frame)
+
+        next_state = frame_stack.get_state()
+
+        if step % SAVE_EVERY == 0:
+            save_comparison(
+                previous_processed,
+                current_processed,
+                maxed_next_frame,
+                next_state,
+                step,
+                info["action_name"]
+            )
+
+        previous_processed = current_processed
+        state = next_state
+
+        print(
+            f"Step {step} | "
+            f"Action: {info['action_name']} | "
+            f"Reward: {reward:.2f}"
+        )
+
+        if done:
+            print("Episode ended.")
+            break
+
     env.close()
+
+    print(f"\nSaved debug frames to: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":

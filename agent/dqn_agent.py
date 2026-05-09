@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class DQNAgent:
     def __init__(self, env, device, lr = 1e-4, gamma = 0.99, epsilon_start = 1.0, epsilon_end = 0.05,
-                 epsilon_decay = 1250000):
+                 epsilon_decay = 2500000):
         self.env = env
         self.device = device
         self.num_actions = env.num_actions
@@ -87,14 +87,16 @@ class DQNAgent:
     def update_target_network(self):
         self.target_net.load_state_dict(self.online_net.state_dict())
 
-    def save(self, path):
+    def save(self, path, total_steps = None, episode = None):
         checkpoint = {
             "online_net": self.online_net.state_dict(),
             "target_net": self.target_net.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "epsilon": self.epsilon,
             "steps_done": self.steps_done,
-            "gamma": self.gamma
+            "gamma": self.gamma,
+            "total_steps": total_steps,
+            "episode": episode
         }
         torch.save(checkpoint, path)
 
@@ -110,3 +112,9 @@ class DQNAgent:
         self.gamma = checkpoint["gamma"]
 
         self.target_net.eval()
+
+        return {
+            "total_steps": checkpoint.get("total_steps", 0),
+            "episode": checkpoint.get("episode", 0),
+        }
+

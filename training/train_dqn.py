@@ -7,6 +7,10 @@ from preprocessing.frame_stack import FrameStack
 from agent.replay_buffer import ReplayBuffer
 from agent.dqn_agent import DQNAgent
 
+RESUME_TRAINING = True
+CHECKPOINT_PATH = "checkpoints/dqn_space_invaders_checkpoint.pt"
+FINAL_MODEL_PATH = "checkpoints/dqn_space_invaders_final.pt"
+
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -16,6 +20,16 @@ def main():
     frame_stack = FrameStack()
     replay_buffer = ReplayBuffer(capacity = 100000)
     agent = DQNAgent(env, device)
+
+    total_steps = 0
+    start_episode = 0
+
+    if RESUME_TRAINING:
+        metadata = agent.load(CHECKPOINT_PATH)
+        total_steps = metadata["total_steps"]
+        start_episode = metadata["episode"] + 1
+        print(f"Resumed from episode {start_episode}, total_steps {total_steps}")
+
     analytics_logger = EpisodeAnalytics("logs/training_analytics.csv")
 
     # Confirm running on GPU
@@ -26,10 +40,9 @@ def main():
     target_update_freq = 1000
     train_start_size = 10000
     save_freq = 50
-    total_steps = 0
     STEP_DOWNTIME = 130
 
-    for episode in range(num_episodes):
+    for episode in range(start_episode, start_episode + num_episodes):
 
         frame, info = env.reset()
 
@@ -124,9 +137,9 @@ def main():
             f"Epsilon: {agent.epsilon:.4f} | " f"Average Loss: {average_loss}")
 
         if episode > 0 and episode % save_freq == 0:
-            agent.save("checkpoints/dqn_space_invaders_checkpoint.pt")
+            agent.save(CHECKPOINT_PATH, total_steps = total_steps, episode = episode)
 
-    agent.save("checkpoints/dqn_space_invaders_final.pt")
+    agent.save(FINAL_MODEL_PATH, total_steps = total_steps, episode = episode)
     env.close()
 
 if __name__ == "__main__":
