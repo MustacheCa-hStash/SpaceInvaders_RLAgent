@@ -20,7 +20,7 @@ def main():
     # Confirm running on GPU
     print(next(agent.online_net.parameters()).device)
 
-    num_episodes = 2000
+    num_episodes = 1000
     batch_size = 32
     target_update_freq = 1000
     train_start_size = 10000
