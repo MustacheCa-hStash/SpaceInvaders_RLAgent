@@ -2,9 +2,9 @@ from env.ale_space_invaders import ALESpaceInvadersEnv
 
 
 STEP_DOWNTIME = 130
-RIGHT_STEPS = 165
-LEFT_STEPS = 164
-RENDER_DELAY = 50
+RENDER_DELAY = 200
+LEFT_BOUND = 0
+RIGHT_BOUND = 164
 
 
 def find_action_index(env, action_name):
@@ -12,27 +12,59 @@ def find_action_index(env, action_name):
         if action.name == action_name:
             return i
 
-    raise ValueError(f"{action_name} action not found.")
+    raise ValueError(f"{action_name} not found.")
 
 
-def run_fixed_action(env, action_index, num_steps, label):
-    for step in range(1, num_steps + 1):
+def get_x(info):
+    return info["pre_action_net_x_pos"]
+
+
+def check_bounds(info, label, step):
+    x = get_x(info)
+
+    if x < LEFT_BOUND or x > RIGHT_BOUND:
+        raise AssertionError(
+            f"{label} step {step}: net_x_pos out of bounds: {x}"
+        )
+
+
+def run_action(env, action_index, steps, label, render=True):
+    last_x = None
+    last_info = None
+
+    for step in range(1, steps + 1):
         frame, reward, done, info = env.step(action_index)
+        last_info = info
 
-        env.render()
+        check_bounds(info, label, step)
+
+        x = get_x(info)
 
         print(
             f"{label} | "
-            f"Step {step}/{num_steps} | "
+            f"Step {step}/{steps} | "
             f"Action: {info['action_name']} | "
-            f"Episode Frame: {info['episode_frame']}"
+            f"pre_action_net_x_pos: {x} | "
+            f"reward: {reward:.2f}"
         )
+
+        if last_x is not None:
+            if label.startswith("RIGHT") and last_x == RIGHT_BOUND and x != RIGHT_BOUND:
+                raise AssertionError("Drift detected at right boundary.")
+
+            if label.startswith("LEFT") and last_x == LEFT_BOUND and x != LEFT_BOUND:
+                raise AssertionError("Drift detected at left boundary.")
+
+        last_x = x
+
+        if render:
+            env.render()
 
         if done:
             print("Game ended early.")
-            return True
+            return True, last_info
 
-    return False
+    return False, last_info
 
 
 def main():
@@ -43,45 +75,45 @@ def main():
         print(i, action.name)
 
     noop_idx = find_action_index(env, "NOOP")
-    right_idx = find_action_index(env, "RIGHT")
     left_idx = find_action_index(env, "LEFT")
+    right_idx = find_action_index(env, "RIGHT")
 
     frame, info = env.reset()
 
-    print(f"\nRendering startup NOOP period ({STEP_DOWNTIME} steps)...\n")
-
-    # Render startup delay steps too
+    print("\nStartup...")
     for step in range(1, STEP_DOWNTIME + 1):
         frame, reward, done, info = env.step(noop_idx)
-
-        env.render()
-
-        print(
-            f"STARTUP | "
-            f"Step {step}/{STEP_DOWNTIME} | "
-            f"Action: {info['action_name']} | "
-            f"Episode Frame: {info['episode_frame']}"
-        )
+        check_bounds(info, "STARTUP", step)
 
         if done:
             print("Game ended during startup.")
             env.close()
             return
 
-    print("\nRunning RIGHT 164 then LEFT 163...\n")
+    print("\nStress test beginning...\n")
 
-    if run_fixed_action(env, right_idx, RIGHT_STEPS, "RIGHT"):
-        env.close()
-        return
+    tests = [
+        ("LEFT slam from start", left_idx, 30),
+        ("RIGHT to wall plus extra", right_idx, 220),
+        ("RIGHT extra at wall", right_idx, 30),
+        ("LEFT to wall plus extra", left_idx, 220),
+        ("LEFT extra at wall", left_idx, 30),
+        ("RIGHT to wall again", right_idx, 220),
+        ("LEFT to wall again", left_idx, 220),
+    ]
 
-    if run_fixed_action(env, left_idx, LEFT_STEPS, "LEFT"):
-        env.close()
-        return
+    for label, action_idx, steps in tests:
+        ended, last_info = run_action(env, action_idx, steps, label, render=True)
 
-    print("\nSequence complete.")
+        if ended:
+            env.close()
+            return
 
-    # Hold final frame briefly
-    for _ in range(20):
+        print(f"Finished {label}. Last pre_action_net_x_pos = {get_x(last_info)}\n")
+
+    print("Boundary tracking test complete. No out-of-bounds drift detected.")
+
+    for _ in range(30):
         env.render()
 
     env.close()
