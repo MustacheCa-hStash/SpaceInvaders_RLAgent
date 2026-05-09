@@ -2,7 +2,7 @@ import torch
 
 from analytics_logger import EpisodeAnalytics
 from env.ale_space_invaders import ALESpaceInvadersEnv
-from preprocessing.frame_preprocessor import FramePreprocessor
+from preprocessing.frame_preprocessor import FramePreprocessor, FrameMaxer
 from preprocessing.frame_stack import FrameStack
 from agent.replay_buffer import ReplayBuffer
 from agent.dqn_agent import DQNAgent
@@ -12,6 +12,7 @@ def main():
 
     env = ALESpaceInvadersEnv()
     preprocessor = FramePreprocessor()
+    frame_maxer = FrameMaxer()
     frame_stack = FrameStack()
     replay_buffer = ReplayBuffer(capacity = 100000)
     agent = DQNAgent(env, device)
@@ -38,7 +39,8 @@ def main():
 
         frame = next_frame
         processed_frame = preprocessor.preprocess(frame)
-        frame_stack.reset(processed_frame)
+        maxed_frame = frame_maxer.reset(processed_frame)
+        frame_stack.reset(maxed_frame)
         state = frame_stack.get_state()
 
         done = False
@@ -75,7 +77,8 @@ def main():
             previous_lives = info["lives"]
 
             processed_next_frame = preprocessor.preprocess(next_frame)
-            frame_stack.append(processed_next_frame)
+            maxed_next_frame = frame_maxer.apply(processed_next_frame)
+            frame_stack.append(maxed_next_frame)
             next_state = frame_stack.get_state()
             replay_buffer.append(state, action, reward, next_state, done)
 

@@ -10,3 +10,16 @@ class FramePreprocessor:
                                    interpolation = cv2.INTER_AREA)
 
         return resized_frame
+
+class FrameMaxer:
+    def __init__(self):
+        self.previous_frame = None
+
+    def reset(self, frame):
+        self.previous_frame = frame
+        return frame
+
+    def apply(self, frame):
+        maxed_frame = np.maximum(self.previous_frame, frame)
+        self.previous_frame = frame
+        return maxed_frame
