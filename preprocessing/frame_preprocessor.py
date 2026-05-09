@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 class FramePreprocessor:
     def __init__(self, width = 84, height = 84):

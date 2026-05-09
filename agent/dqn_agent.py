@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class DQNAgent:
     def __init__(self, env, device, lr = 1e-4, gamma = 0.99, epsilon_start = 1.0, epsilon_end = 0.05,
-                 epsilon_decay = 2500000):
+                 epsilon_decay = 1250000):
         self.env = env
         self.device = device
         self.num_actions = env.num_actions
