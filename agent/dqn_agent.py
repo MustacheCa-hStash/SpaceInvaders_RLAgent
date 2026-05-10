@@ -4,8 +4,8 @@ import torch
 import torch.nn.functional as F
 
 class DQNAgent:
-    def __init__(self, env, device, lr = 1e-4, gamma = 0.99, epsilon_start = 1.0, epsilon_end = 0.05,
-                 epsilon_decay = 2500000):
+    def __init__(self, env, device, lr = 1e-4, gamma = 0.99, epsilon_start = 1.0, epsilon_end = 0.08,
+                 epsilon_decay = 3500000):
         self.env = env
         self.device = device
         self.num_actions = env.num_actions
@@ -100,14 +100,18 @@ class DQNAgent:
         }
         torch.save(checkpoint, path)
 
-    def load(self, path):
-        checkpoint = torch.load(path, map_location = self.device)
+    def load(self, path, epsilon_override=None):
+        checkpoint = torch.load(path, map_location=self.device)
 
         self.online_net.load_state_dict(checkpoint["online_net"])
         self.target_net.load_state_dict(checkpoint["target_net"])
         self.optimizer.load_state_dict(checkpoint["optimizer"])
 
         self.epsilon = checkpoint["epsilon"]
+
+        if epsilon_override is not None:
+            self.epsilon = epsilon_override
+
         self.steps_done = checkpoint["steps_done"]
         self.gamma = checkpoint["gamma"]
 

@@ -25,7 +25,7 @@ def main():
     start_episode = 0
 
     if RESUME_TRAINING:
-        metadata = agent.load(CHECKPOINT_PATH)
+        metadata = agent.load(CHECKPOINT_PATH, epsilon_override = 0.2)
         total_steps = metadata["total_steps"]
         start_episode = metadata["episode"] + 1
         print(f"Resumed from episode {start_episode}, total_steps {total_steps}")
