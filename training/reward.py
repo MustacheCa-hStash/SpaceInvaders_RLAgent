@@ -10,13 +10,13 @@ class SpaceInvadersRewardFunction:
             reward += 0.01
 
         if life_lost:
-            reward -= 150.0
+            reward -= 200.0
 
         reward += env_reward
 
         if action_enum in [Action.LEFT, Action.LEFTFIRE] and net_x_pos == 0:
-            reward -= 0.05
+            reward -= 0.02
         elif action_enum in [Action.RIGHT, Action.RIGHTFIRE] and net_x_pos == 164:
-            reward -= 0.05
+            reward -= 0.02
 
         return reward
